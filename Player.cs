@@ -21,7 +21,12 @@ public partial class Player : CharacterBody2D
         MoveAndSlideCorner((float)delta);
     }
 
-    private void MoveAndSlideCorner(float delta)
+    /// <summary>
+    /// This method works almost exactly the same as <see cref="CharacterBody2d.MoveAndCollide"/>.
+    /// </summary>
+    /// <param name="motion">Characters motion, for frame independence use `delta`</param>
+    /// <returns>collision object</returns>
+    public KinematicCollision2D? MoveAndCollideCorner(Vector2 motion)
     {
         // of we store global transform, then we would need to update it every frame
         var collisionShape = GetNode<CollisionShape2D>("CollisionShape2D");
@@ -29,7 +34,7 @@ public partial class Player : CharacterBody2D
         var shape = (RectangleShape2D)collisionShape.Shape;
 
         // move
-        var collision = MoveAndCollide(Velocity * delta);
+        var collision = MoveAndCollide(motion);
 
         // if we collided with something
         if (collision is not null)
@@ -59,7 +64,6 @@ public partial class Player : CharacterBody2D
             // check if every point is at max `CornerCorrectionAmount` away from the corner
             foreach (var point in points)
             {
-                // if it is collision on y axis (we are at the top or bottom)
                 if (collision.GetNormal().Y != 0)
                 {
                     // our local right, if we multiply this by -1 it will be left side
@@ -93,7 +97,7 @@ public partial class Player : CharacterBody2D
             }
             if (isCorner)
             {
-                var hisSize = (collider.Shape as RectangleShape2D).Size * collider.GlobalScale;
+                var hisSize = ((RectangleShape2D)collider.Shape).Size * collider.GlobalScale;
                 var ourSize = shape.Size * collisionShape.GlobalScale;
                 var moveSamePos = collider.GlobalPosition - collisionShape.GlobalPosition;
                 // For Y collision (we are at the top or bottom)
@@ -108,7 +112,10 @@ public partial class Player : CharacterBody2D
                 // ||||
                 // and then by one pixel so that we cont collide with it again (same x is collision)
                 var snapMovement = moveSamePos;
-                snapMovement -= side.Value * (hisSize / 2 + ourSize / 2 + Vector2.One);
+                // tell compiler that side is definitely not null,
+                // because we assert that points length is < 0 and in the first iteration side will get value
+                snapMovement -= side!.Value * (hisSize / 2 + ourSize / 2 + Vector2.One);
+                // if we collided on Y, then we only move it by X axis, and vice versa
                 if (collision.GetNormal().Y != 0)
                     snapMovement.Y = 0;
                 else
@@ -119,32 +126,44 @@ public partial class Player : CharacterBody2D
                     Position += snapMovement;
                 }
             }
-            else
-            {
-                // Get the velocity that we still need to move, without delta
-                Velocity = collision.GetRemainder() / (float)delta;
-                MoveAndSlide();
-                // or manually do MoveAndSlide()
-                // this might not use movement correctly (GetRemainder)
-                // Velocity = Velocity.Slide(collision.GetNormal());
-                // MoveAndSlide();
-                // const int maxSlides = 4;
-                // int slideCount = 0;
-                // while (movement.LengthSquared() > 0.001f && slideCount < maxSlides)
-                // {
-                //     var _collision = MoveAndCollide(movement);
-                //     if (_collision is null)
-                //     {
-                //         // No collision, we're done
-                //         break;
-                //     }
-                //     // Slide along the collision normal
-                //     var normal = _collision.GetNormal();
-                //     movement = movement.Slide(normal);
-                //     // Prevent infinite loops
-                //     slideCount++;
-                // }
-            }
+        }
+        return collision;
+    }
+
+    /// <summary>
+    /// This method behaves almost the same as `MoveAndSlide` but with corner correction
+    /// It will use `Velocity` to calculate movement
+    /// </summary>
+    /// <param name="delta">The delta time, for frame independence</param>
+    public void MoveAndSlideCorner(float delta)
+    {
+        // move regularly
+        var collision = MoveAndCollideCorner(Velocity * delta);
+        if (collision is not null)
+        {
+            // Get the velocity that we still need to move, without delta
+            Velocity = collision.GetRemainder() / (float)delta;
+            MoveAndSlide();
+            // or manually do MoveAndSlide()
+            // this might not use movement correctly (GetRemainder)
+            // Velocity = Velocity.Slide(collision.GetNormal());
+            // MoveAndSlide();
+            // const int maxSlides = 4;
+            // int slideCount = 0;
+            // while (movement.LengthSquared() > 0.001f && slideCount < maxSlides)
+            // {
+            //     var _collision = MoveAndCollide(movement);
+            //     if (_collision is null)
+            //     {
+            //         // No collision, we're done
+            //         break;
+            //     }
+            //     // Slide along the collision normal
+            //     var normal = _collision.GetNormal();
+            //     movement = movement.Slide(normal);
+            //     // Prevent infinite loops
+            //     slideCount++;
+            // }
         }
     }
 }
