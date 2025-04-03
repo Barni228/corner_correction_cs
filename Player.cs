@@ -1,31 +1,26 @@
-using System;
-using System.Diagnostics; // Debug.Assert
+namespace CornerCorrection; // tell that this entire file is corner correction namespace
 using Godot;
 
 // TIP: GetRect will return rectangle representing this shape, without including Transform
-// TODO: support rotation, and skew
 // TODO: add tests
 public partial class Player : CharacterBody2D
 {
     /// <summary>
-    /// Player speed, pixels per second
+    /// maximum normal angle at which we will still corner correct
+    /// so if it is `0.1f` and we hit something with normal `(0.1, 0.9)`, we will still corner correct
     /// </summary>
-    [Export] public float Speed = 200.0f;
+    const float normalAngleMax = 0.1f;
 
     /// <summary>
-    /// Amount of corner correction
+    /// Player speed, pixels per second
     /// </summary>
-    [Export] public int CornerCorrectionAmount = 32;
+    [Export] public float Speed { get; set; } = 200.0f;
 
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-    private static CollisionShape2D collisionShape;
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+    /// <summary>
+    /// Amount of corner correction, inclusive (if 5, then player can be moved by 5 or less)
+    /// </summary>
+    [Export] public int CornerCorrectionAmount { get; set; } = 8;
 
-    public override void _Ready()
-    {
-        // if we store global transform, then we would need to update it every frame
-        collisionShape = GetNode<CollisionShape2D>("CollisionShape2D");
-    }
     public override void _PhysicsProcess(double delta)
     {
         Velocity = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down") * Speed;
@@ -36,95 +31,33 @@ public partial class Player : CharacterBody2D
     /// This method works almost exactly the same as <see cref="CharacterBody2d.MoveAndCollide"/>.
     /// </summary>
     /// <param name="motion">Characters motion, for frame independence use `delta`</param>
+    /// <param name="testOnly">If true, don't actually move the player</param>
+    /// <param name="keepMove">
+    /// If true, object continues moving after corner correction
+    /// So if object needed to move by 10px, and it moves by 2px and then it hits an obstacle
+    /// But successfully corner corrects away, if `keepMove` is true it will still move by 8px
+    /// </param>
     /// <returns>collision object</returns>
-    public KinematicCollision2D? MoveAndCollideCorner(Vector2 motion, bool testOnly = false)
+    public KinematicCollision2D? MoveAndCollideCorner(Vector2 motion, bool testOnly = false, bool keepMove = true)
     {
-        // we expect the shape to be rectangle shape
-        var shape = (RectangleShape2D)collisionShape.Shape;
-
-        // move
         var collision = MoveAndCollide(motion, testOnly);
+        if (collision is null)
+            return null;
 
-        // if we collided with something
-        if (collision is not null)
-        {
-            // we expect get normal to be combination of (0, 1) or (0, -1)
-            if (!(collision.GetNormal().X == 0 || collision.GetNormal().Y == 0))
-                return collision;
+        var normal = collision.GetNormal();
+        var smallest = Mathf.Min(Mathf.Abs(normal.X), Mathf.Abs(normal.Y));
 
-            var remainingMotion = testOnly ? motion : collision.GetRemainder();
-            // get the shape of the thing we collided with
-            var collider = (CollisionShape2D)collision.GetColliderShape();
-            // this will imagine moving `shape` with `shapeTransform` by
-            // `collision.GetRemainder()` (remaining movement),
-            // and return Contacts with the `collider.Shape` with `collider.GlobalTransform` that would move
-            // by `Vector2.ZERO`
-            // Contacts are points that would define polygon of interception
-            // so for two rects it will be 4 Vector2 (top left, top right, bottom right, bottom left)
-            var points = shape.CollideWithMotionAndGetContacts(
-                // Global Transform is the real transform of a Node,
-                // so if parent has scale 0.5 and we have scale 2.0, global scale is 1.0
-                collisionShape.GlobalTransform,
-                remainingMotion,
-                collider.Shape,
-                collider.GlobalTransform,
-                Vector2.Zero
-            );
-            // when we have sub-pixel collision, MoveAndCollide will see it while shape will not
-            // so we will just move one pixel away and try again
-            if (points.Length <= 0)
-            {
-                // if we handled the collision, return null
-                if (Wiggle(1, collision.GetNormal(), testOnly) is not null)
-                    return null;
-                else
-                    return collision;
-            }
-            bool isCorner = true;
-            // side of collision, 1 for right or bottom, and -1 for left or top
-            int? side = null;
-            // check if every point is at max `CornerCorrectionAmount` away from the corner
-            foreach (var point in points)
-            {
-                if (collision.GetNormal().X == 0)
-                {
-                    // our local right, if we multiply this by -1 it will be left side
-                    var rightSide = shape.Size.X * collisionShape.GlobalTransform.Scale.X / 2;
-                    // make sure side is not null
-                    side ??= Mathf.Abs(rightSide - ToLocal(point).X) > CornerCorrectionAmount ? -1 : 1;
-                    // this is the same
-                    // if (side is null)
-                    //     if (Mathf.Abs(leftSide * 1 - ToLocal(point).X) > CornerCorrectionAmount)
-                    //         side = -1;
-                    //     else
-                    //         side = 1;
-                    // if point is more then `CornerCorrectionAmount` from the Corner
-                    // .Value returns the non null value of the variable, or error otherwise
-                    if (Mathf.Abs(rightSide * side.Value - ToLocal(point).X) > CornerCorrectionAmount)
-                    {
-                        isCorner = false;
-                        break;
-                    }
-                }
-                else
-                {
-                    var bottomSide = shape.Size.Y * collisionShape.GlobalTransform.Scale.Y / 2;
-                    side ??= Mathf.Abs(bottomSide - ToLocal(point).Y) > CornerCorrectionAmount ? -1 : 1;
-                    if (Mathf.Abs(bottomSide * side.Value - ToLocal(point).Y) > CornerCorrectionAmount)
-                    {
-                        isCorner = false;
-                        break;
-                    }
-                }
-            }
-            if (isCorner)
-            {
-                // if we handled collision, return null
-                if (Wiggle(CornerCorrectionAmount, collision.GetNormal(), testOnly) is not null)
-                    return null;
-            }
-        }
-        return collision;
+        if (smallest > 0.1f)
+            return collision;
+
+        var correctionResult = Wiggle(CornerCorrectionAmount, normal, testOnly);
+        if (correctionResult is null)
+            return collision;
+
+        if (!keepMove)
+            return null;
+
+        return MoveAndCollideCorner(collision.GetRemainder(), testOnly, keepMove);
     }
 
     /// <summary>
@@ -140,25 +73,41 @@ public partial class Player : CharacterBody2D
     /// </returns>
     private int? Wiggle(int range, Vector2 normal, bool testOnly)
     {
-        var v = normal.X == 0 ? Vector2I.Right : Vector2I.Down;
-        for (int i = 1; i < range; i++)
-            foreach (Vector2I move in new Vector2I[] { v * i, v * i * -1 })
+        // Axis on which we will be moving
+        var v = ApproximatelyEqual(normal.X, 0) ? Vector2.Right : Vector2.Down;
+
+        for (int i = 1; i <= range; i++)
+            foreach (Vector2 move in new Vector2[] { v * i, v * i * -1 })
             {
-                if (TestMove(collisionShape.GlobalTransform, move))
-                {
-                    continue;
-                }
-                Position += move;
-                // if we are at the bottom, try to move to the top
-                if (MoveAndCollide(normal * -1, testOnly: testOnly) is null)
-                {
-                    if (testOnly)
-                        Position -= move;
+                if (CheckIfWorks(move, normal * -1, testOnly))
                     return i;
-                }
-                Position -= move;
             }
         return null;
+    }
+
+    private bool CheckIfWorks(Vector2 initMovement, Vector2 checkMovement, bool testOnly = false)
+    {
+        // if we cannot move to the initial position, then this does not work
+        if (MoveAndCollide(initMovement, true) is not null)
+            return false;
+
+        // move to the initial position
+        var prevPos = Position;
+        Position += initMovement;
+
+        // if we cannot move by the check movement, then this does not work
+        if (MoveAndCollide(checkMovement, testOnly: testOnly) is not null)
+        {
+            // if this movement does not work, we don't want to move player
+            Position = prevPos;
+            return false;
+        }
+        // at this point, the movement works
+        // if testOnly is false, then MoveAndCollide already moved above
+        if (testOnly)
+            Position = prevPos;
+
+        return true;
     }
 
     /// <summary>
@@ -175,6 +124,7 @@ public partial class Player : CharacterBody2D
             // Get the velocity that we still need to move, with delta applied
             Velocity = collision.GetRemainder();
 
+            // for some reason move and slide does not work properly if i move character properly
             // Velocity /= delta; MoveAndSlide(); return;
             // you need the loop in case of slopes
             const int maxSlides = 4;
@@ -183,10 +133,9 @@ public partial class Player : CharacterBody2D
             {
                 var _collision = MoveAndCollide(Velocity);
                 if (_collision is null)
-                {
                     // No collision, we're done
                     break;
-                }
+
                 // Slide along the collision normal
                 var normal = _collision.GetNormal();
                 Velocity = Velocity.Slide(normal);
@@ -195,4 +144,7 @@ public partial class Player : CharacterBody2D
             }
         }
     }
+
+    private static bool ApproximatelyEqual(float x, float y, float precision = normalAngleMax) =>
+        Mathf.Abs(x - y) <= precision;
 }

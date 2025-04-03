@@ -4,5 +4,6 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>CornerCorrection</RootNamespace>
     <Nullable>enable</Nullable>
+    <AnalysisMode>Recommended</AnalysisMode>
   </PropertyGroup>
 </Project>
