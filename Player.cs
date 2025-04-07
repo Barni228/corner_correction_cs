@@ -2,7 +2,6 @@ namespace CornerCorrection; // tell that this entire file is corner correction n
 using Godot;
 
 // TIP: GetRect will return rectangle representing this shape, without including Transform
-// TODO: add tests
 public partial class Player : CharacterBody2D
 {
     /// <summary>

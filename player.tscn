@@ -8,6 +8,7 @@ size = Vector2(213.333, 213.333)
 
 [node name="Player" type="CharacterBody2D"]
 scale = Vector2(1.2, 1)
+collision_layer = 2
 script = ExtResource("1_onrkg")
 CornerCorrectionAmount = 32
 
