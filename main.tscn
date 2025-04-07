@@ -13,7 +13,6 @@ radius = 56.8889
 
 [node name="Player" parent="." instance=ExtResource("1_0xm2m")]
 position = Vector2(-15, 224)
-CornerCorrectionAmount = 32
 
 [node name="StaticBody2D" type="StaticBody2D" parent="."]
 position = Vector2(0, -96)

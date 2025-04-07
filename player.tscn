@@ -9,6 +9,7 @@ size = Vector2(213.333, 213.333)
 [node name="Player" type="CharacterBody2D"]
 scale = Vector2(1.2, 1)
 script = ExtResource("1_onrkg")
+CornerCorrectionAmount = 32
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("1_4flbx")
