@@ -3,7 +3,6 @@ extends TestParent
 func before_all():
     setup(preload("res://test/scenes/test_corner.tscn"))
 
-# THIS WILL FAIL
 func test_corner_collision_works():
     watch_signals(area)
 

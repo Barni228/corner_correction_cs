@@ -44,9 +44,11 @@ public partial class Player : CharacterBody2D
             return null;
 
         var normal = collision.GetNormal();
-        var smallest = Mathf.Min(Mathf.Abs(normal.X), Mathf.Abs(normal.Y));
+        var smallest_norm = Mathf.Min(Mathf.Abs(normal.X), Mathf.Abs(normal.Y));
+        var smallest_direction = Mathf.Min(Mathf.Abs(motion.X), Mathf.Abs(motion.Y));
 
-        if (smallest > 0.1f)
+        // if we hit something diagonally, or we were going diagonally, then dont corner correct
+        if (!ApproximatelyEqual(smallest_norm, 0) || !ApproximatelyEqual(smallest_direction, 0))
             return collision;
 
         var correctionResult = Wiggle(CornerCorrectionAmount, normal, testOnly);
@@ -144,6 +146,6 @@ public partial class Player : CharacterBody2D
         }
     }
 
-    private static bool ApproximatelyEqual(float x, float y, float precision = normalAngleMax) =>
-        Mathf.Abs(x - y) <= precision;
+    private static bool ApproximatelyEqual(float a, float b, float precision = normalAngleMax) =>
+        Mathf.Abs(a - b) <= precision;
 }
