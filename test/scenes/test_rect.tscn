@@ -15,7 +15,6 @@ position = Vector2(-480, 0)
 
 [node name="Area2D" parent="." index="2"]
 position = Vector2(-288, -32)
-should_be_reached = true
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D" index="0"]
 shape = SubResource("RectangleShape2D_q76yo")

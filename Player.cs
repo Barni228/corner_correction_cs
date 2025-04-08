@@ -1,5 +1,8 @@
 namespace CornerCorrection; // tell that this entire file is corner correction namespace
+
+using System;
 using Godot;
+using static Godot.Mathf;
 
 // TIP: GetRect will return rectangle representing this shape, without including Transform
 public partial class Player : CharacterBody2D
@@ -20,35 +23,65 @@ public partial class Player : CharacterBody2D
     /// </summary>
     [Export] public int CornerCorrectionAmount { get; set; } = 8;
 
+    [Export] public Vector2[] IgnoreSides { get; set; } = [];
+
     public override void _PhysicsProcess(double delta)
     {
         Velocity = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down") * Speed;
-        MoveAndSlideCorner((float)delta);
+        MoveAndSlideCorner((float)delta, IgnoreSides);
     }
 
     /// <summary>
     /// This method works almost exactly the same as <see cref="CharacterBody2d.MoveAndCollide"/>.
+    /// It modifies `Position`, and uses `MoveAndCollide`
     /// </summary>
     /// <param name="motion">Characters motion, for frame independence use `delta`</param>
     /// <param name="testOnly">If true, don't actually move the player</param>
+    /// <param name="ignoreSides">The sides that should not have corner correction (e.g. Vector2.DOWN)</param>
     /// <param name="keepMove">
     /// If true, object continues moving after corner correction
     /// So if object needed to move by 10px, and it moves by 2px and then it hits an obstacle
     /// But successfully corner corrects away, if `keepMove` is true it will still move by 8px
     /// </param>
     /// <returns>collision object</returns>
-    public KinematicCollision2D? MoveAndCollideCorner(Vector2 motion, bool testOnly = false, bool keepMove = true)
+    public KinematicCollision2D? MoveAndCollideCorner(
+        Vector2 motion,
+        bool testOnly = false,
+        ReadOnlySpan<Vector2> ignoreSides = default,
+        bool keepMove = true)
     {
         var collision = MoveAndCollide(motion, testOnly);
         if (collision is null)
             return null;
 
         var normal = collision.GetNormal();
-        var smallest_norm = Mathf.Min(Mathf.Abs(normal.X), Mathf.Abs(normal.Y));
-        var smallest_direction = Mathf.Min(Mathf.Abs(motion.X), Mathf.Abs(motion.Y));
+        // the direction of the collision
+        var direction = -normal.Round();
 
-        // if we hit something diagonally, or we were going diagonally, then dont corner correct
-        if (!ApproximatelyEqual(smallest_norm, 0) || !ApproximatelyEqual(smallest_direction, 0))
+        static bool isDiagonal(Vector2 v) => Min(Abs(v.X), Abs(v.Y)) > normalAngleMax;
+        // this is integers only, direction in player was going
+        // if it is top left, and top is ignored side then this will be right only
+        var logicalMotion = new Vector2(
+            ApproximatelyEqual(motion.X, 0) ? 0 : motion.X < 0 ? -1 : 1,
+            ApproximatelyEqual(motion.Y, 0) ? 0 : motion.Y < 0 ? -1 : 1
+        );
+
+        // if we hit something diagonally, dont corner correct
+        if (isDiagonal(normal))
+            return collision;
+
+        foreach (var ignore in ignoreSides)
+        {
+            if (ApproximatelyEqual(ignore, direction))
+                return collision;
+
+            if (logicalMotion.X == ignore.X)
+                logicalMotion.X = 0;
+            if (logicalMotion.Y == ignore.Y)
+                logicalMotion.Y = 0;
+        }
+
+        if (isDiagonal(logicalMotion))
             return collision;
 
         var correctionResult = Wiggle(CornerCorrectionAmount, normal, testOnly);
@@ -58,14 +91,14 @@ public partial class Player : CharacterBody2D
         if (!keepMove)
             return null;
 
-        return MoveAndCollideCorner(collision.GetRemainder(), testOnly, keepMove);
+        return MoveAndCollideCorner(collision.GetRemainder(), testOnly, ignoreSides, keepMove);
     }
 
     /// <summary>
-    /// This method will move back and forth the player on `axis` axis by no more that `range`
+    /// This method will move back and forth the player by no more that `range`
     /// </summary>
     /// <param name="range">maximum movement that could be performed</param>
-    /// <param name="normal">collision normal (`KinematicCollision2D.GetNormal()`)</param>
+    /// <param name="normal">normal of the collision (`KinematicCollision2D.GetNormal()`)</param>
     /// <param name="testOnly">if `true`, do not actually move the player</param>
     /// <returns>
     /// number of pixels moved if player was moved successfully 
@@ -75,12 +108,14 @@ public partial class Player : CharacterBody2D
     private int? Wiggle(int range, Vector2 normal, bool testOnly)
     {
         // Axis on which we will be moving
-        var v = ApproximatelyEqual(normal.X, 0) ? Vector2.Right : Vector2.Down;
+        // var v = ApproximatelyEqual(direction.X, 0) ? Vector2.Right : Vector2.Down;
+        var v = normal.Rotated(DegToRad(90));
 
+        // we dont start at 0, because moving by 0 means not moving
         for (int i = 1; i <= range; i++)
             foreach (Vector2 move in new Vector2[] { v * i, v * i * -1 })
             {
-                if (CheckIfWorks(move, normal * -1, testOnly))
+                if (CheckIfWorks(move, -normal, testOnly))
                     return i;
             }
         return null;
@@ -115,11 +150,12 @@ public partial class Player : CharacterBody2D
     /// This method behaves almost the same as `MoveAndSlide` but with corner correction
     /// It will use `Velocity` to calculate movement
     /// </summary>
-    /// <param name="delta">The delta time, for frame independence</param>
-    public void MoveAndSlideCorner(float delta)
+    /// <param name="delta">The delta time, for frame rate independence</param>
+    // public void MoveAndSlideCorner(float delta, ReadOnlySpan<Vector2> ignoreSides = default)
+    public void MoveAndSlideCorner(float delta, ReadOnlySpan<Vector2> ignoreSides = default)
     {
         // move regularly
-        var collision = MoveAndCollideCorner(Velocity * delta);
+        var collision = MoveAndCollideCorner(Velocity * delta, ignoreSides: ignoreSides);
         if (collision is not null)
         {
             // Get the velocity that we still need to move, with delta applied
@@ -146,6 +182,9 @@ public partial class Player : CharacterBody2D
         }
     }
 
-    private static bool ApproximatelyEqual(float a, float b, float precision = normalAngleMax) =>
-        Mathf.Abs(a - b) <= precision;
+    public static bool ApproximatelyEqual(float a, float b, float precision = normalAngleMax) =>
+        Abs(a - b) <= precision;
+
+    public static bool ApproximatelyEqual(Vector2 a, Vector2 b, float precision = normalAngleMax) =>
+        ApproximatelyEqual(a.X, b.X, precision) && ApproximatelyEqual(a.Y, b.Y, precision);
 }

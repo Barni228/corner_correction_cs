@@ -12,20 +12,23 @@ var input_sender = GutInputSender.new(Input)
 
 ## expects scene, which ideally inherits from `test_scene`
 func setup(level_scene: PackedScene):
-    _level_scene = level_scene
+	_level_scene = level_scene
+
+func area_should_be_reached(b: bool):
+	area.should_be_reached = b
 
 func before_all():
-    gut.p("parent before all")
+	gut.p("parent before all")
 
 func before_each():
-    if _level_scene == null:
-        push_error("you forgot to provide a scene, do it with `setup`, " + \
-        "example: ```before_each(): setup(preload(...))```")
+	if _level_scene == null:
+		push_error("you forgot to provide a scene, do it with `setup`, " + \
+		"example: ```before_each(): setup(preload(...))```")
 
-    level = add_child_autofree(_level_scene.instantiate())
-    player = level.get_node("Player")
-    area = level.get_node("Area2D")
+	level = add_child_autofree(_level_scene.instantiate())
+	player = level.get_node("Player")
+	area = level.get_node("Area2D")
 
 func after_each():
-    input_sender.release_all()
-    input_sender.clear()
+	input_sender.release_all()
+	input_sender.clear()
