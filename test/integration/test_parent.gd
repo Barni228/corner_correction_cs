@@ -17,6 +17,12 @@ func setup(level_scene: PackedScene):
 func area_should_be_reached(b: bool):
 	area.should_be_reached = b
 
+## A constant motion that player should have
+## both x and y will get multiplied by player speed
+func move_player(x: float, y: float):
+	var direction = Vector2(x, y)
+	player.ConstantMovement = direction * player.Speed
+
 func before_all():
 	gut.p("parent before all")
 

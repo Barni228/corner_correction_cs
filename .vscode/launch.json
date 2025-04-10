@@ -57,25 +57,36 @@
       "console": "integratedTerminal"
     },
     {
-      // "name": "🔬 Debug Current Test",
-      // "type": "coreclr",
-      // "request": "launch",
-      // "preLaunchTask": "build",
-      // "program": "${env:GODOT}",
-      // "args": [
-      //   // These command line flags are used by GoDotTest to run tests.
-      //   "--run-tests=${fileBasenameNoExtension}",
-      //   "--quit-on-finish"
-      // ],
-      // "cwd": "${workspaceFolder}",
-      // "stopAtEntry": false,
-      // "console": "integratedTerminal"
       "name": "🔬 Debug Current Test",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
       "program": "${env:GODOT}",
       "args": ["test/scenes/${fileBasenameNoExtension}.tscn"],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "📝 Run current test",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${env:GODOT}",
+      "args": [
+        // "--headless",
+        "-s",
+        "res://addons/gut/gut_cmdln.gd",
+        "--",
+        "-gconfig=res://.gutconfig.json",
+        // "-gdir",
+        // "res://test",
+        "-gselect",
+        // "-gunit_test_name",
+        "${fileBasenameNoExtension}"
+
+        // "-gexit"
+      ],
       "cwd": "${workspaceFolder}",
       "stopAtEntry": false,
       "console": "integratedTerminal"

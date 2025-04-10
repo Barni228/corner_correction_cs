@@ -1,6 +1,7 @@
 namespace CornerCorrection; // tell that this entire file is corner correction namespace
 
 using System;
+using System.Diagnostics;
 using Godot;
 using static Godot.Mathf;
 
@@ -11,7 +12,16 @@ public partial class Player : CharacterBody2D
     /// maximum normal angle at which we will still corner correct
     /// so if it is `0.1f` and we hit something with normal `(0.1, 0.9)`, we will still corner correct
     /// </summary>
-    const float normalAngleMax = 0.1f;
+    const float NormalAngleMax = 0.1f;
+
+    /// <summary>
+    /// if player ignores bottom, and moves 80px down and 20px right (falls)
+    /// and he hits corner of something to hit right (platform), should he:
+    /// - hit it and just fall down, because he was moving mostly down (false)
+    /// - corner correct and keep moving right, because he ignores bottom (true)
+    /// by default or if there was no ignoring he would just hit it and fall down
+    /// </summary>
+    public bool IgnoreIsSpecial { get; set; } = false;
 
     /// <summary>
     /// Player speed, pixels per second
@@ -25,9 +35,16 @@ public partial class Player : CharacterBody2D
 
     [Export] public Vector2[] IgnoreSides { get; set; } = [];
 
+    /// <summary>
+    /// Constant movement that player will go through
+    /// This does not respect `Speed` property, so (1, 1) will move very slowly to bottom right
+    /// </summary>
+    public Vector2 ConstantMovement { get; set; } = Vector2.Zero;
+
     public override void _PhysicsProcess(double delta)
     {
         Velocity = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down") * Speed;
+        Velocity += ConstantMovement;
         MoveAndSlideCorner((float)delta, IgnoreSides);
     }
 
@@ -55,33 +72,55 @@ public partial class Player : CharacterBody2D
             return null;
 
         var normal = collision.GetNormal();
-        // the direction of the collision
-        var direction = -normal.Round();
-
-        static bool isDiagonal(Vector2 v) => Min(Abs(v.X), Abs(v.Y)) > normalAngleMax;
-        // this is integers only, direction in player was going
-        // if it is top left, and top is ignored side then this will be right only
-        var logicalMotion = new Vector2(
-            ApproximatelyEqual(motion.X, 0) ? 0 : motion.X < 0 ? -1 : 1,
-            ApproximatelyEqual(motion.Y, 0) ? 0 : motion.Y < 0 ? -1 : 1
-        );
 
         // if we hit something diagonally, dont corner correct
-        if (isDiagonal(normal))
+        if (IsDiagonal(normal))
             return collision;
+
+        // the direction of the collision
+        var direction = -normal.Round();
+        // we are sure that direction is either (±1, 0) or (0, ±1)
+        Debug.Assert(direction.LengthSquared() == 1);
+
+        // direction that player was going, integer only
+        // we make sure that motion x + y == 1, and then round both numbers
+        var logicalMotion = NormalizeSum1(motion).Round();
 
         foreach (var ignore in ignoreSides)
         {
             if (ApproximatelyEqual(ignore, direction))
                 return collision;
 
-            if (logicalMotion.X == ignore.X)
-                logicalMotion.X = 0;
-            if (logicalMotion.Y == ignore.Y)
-                logicalMotion.Y = 0;
+            // this is the only place where we use `IgnoreIsSpecial`
+            if (IgnoreIsSpecial)
+            {
+                // basically, if we ignore our current logical movement, but we also were moving slightly diagonally
+                // then we say the other way we were moving will be the main way we were moving
+                if (logicalMotion.X == ignore.X)
+                    // logicalMotion = motion.Y == 0 ? Vector2.Zero : motion.Y > 0 ? Vector2.Down : Vector2.Up;
+                    logicalMotion = motion.Y > 0 ? Vector2.Down : Vector2.Up;
+                if (logicalMotion.Y == ignore.Y)
+                    // logicalMotion = motion.X == 0 ? Vector2.Zero : motion.X > 0 ? Vector2.Right : Vector2.Left;
+                    logicalMotion = motion.X > 0 ? Vector2.Right : Vector2.Left;
+            }
+            else
+            {
+                if (logicalMotion.X == ignore.X)
+                    logicalMotion.X = 0;
+                if (logicalMotion.Y == ignore.Y)
+                    logicalMotion.Y = 0;
+            }
         }
 
-        if (isDiagonal(logicalMotion))
+        // if logical motion is not (±1, 0) or (0, ±1)
+        // this is redundant, because we already make this check for `direction`
+        // so if logical motion is not one of them then we return collision anyway
+        if (logicalMotion.LengthSquared() != 1)
+            return collision;
+
+        // if we hit something, but we were not going that direction, dont corner correct
+        // so if we were moving top, and very slightly left, we only want corner correct to the top
+        if (direction != logicalMotion)
             return collision;
 
         var correctionResult = Wiggle(CornerCorrectionAmount, normal, testOnly);
@@ -182,9 +221,21 @@ public partial class Player : CharacterBody2D
         }
     }
 
-    public static bool ApproximatelyEqual(float a, float b, float precision = normalAngleMax) =>
+    public static bool IsDiagonal(Vector2 v) => Min(Abs(v.X), Abs(v.Y)) > NormalAngleMax;
+    public static bool ApproximatelyEqual(float a, float b, float precision = NormalAngleMax) =>
         Abs(a - b) <= precision;
 
-    public static bool ApproximatelyEqual(Vector2 a, Vector2 b, float precision = normalAngleMax) =>
+    public static bool ApproximatelyEqual(Vector2 a, Vector2 b, float precision = NormalAngleMax) =>
         ApproximatelyEqual(a.X, b.X, precision) && ApproximatelyEqual(a.Y, b.Y, precision);
+
+    public static Vector2 NormalizeSum1(Vector2 vec)
+    {
+        if (vec == Vector2.Zero)
+            return Vector2.Zero;
+
+        var sum = Abs(vec.X) + Abs(vec.Y);
+        return vec / sum;
+    }
+
+    public static Vector2 NormalizeSum1(float x, float y) => NormalizeSum1(new Vector2(x, y));
 }
