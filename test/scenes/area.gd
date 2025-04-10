@@ -1,6 +1,7 @@
 @tool
 extends Area2D
 
+# if you change this doc, also change it in `template.gd`
 ## if `true`, the collision shape color will be green, otherwise it will be red
 @export var should_be_reached := true:
 	set(value):

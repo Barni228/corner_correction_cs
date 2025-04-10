@@ -1,9 +1,9 @@
-extends TestParent
+extends TestTemplate
 
-func before_all():
+func before_all() -> void:
 	setup(preload("res://test/scenes/test_corner.tscn"))
 
-func test_corner_collision_works():
+func test_corner_collision_works() -> void:
 	watch_signals(area)
 
 	# we can also press keys instead of actions
@@ -13,7 +13,7 @@ func test_corner_collision_works():
 
 	assert_signal_emitted(area, "body_entered")
 
-func test_corner_with_ignore():
+func test_corner_with_ignore() -> void:
 	watch_signals(area)
 
 	# if we ignore collisions at the bottom, it shouldn't matter

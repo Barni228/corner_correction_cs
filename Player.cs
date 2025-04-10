@@ -5,7 +5,6 @@ using System.Diagnostics;
 using Godot;
 using static Godot.Mathf;
 
-// TIP: GetRect will return rectangle representing this shape, without including Transform
 public partial class Player : CharacterBody2D
 {
     /// <summary>
@@ -15,13 +14,13 @@ public partial class Player : CharacterBody2D
     const float NormalAngleMax = 0.1f;
 
     /// <summary>
-    /// if player ignores bottom, and moves 80px down and 20px right (falls)
+    /// if player ignores bottom, and moves 80px down and 20px right (fall)
     /// and he hits corner of something to hit right (platform), should he:
     /// - hit it and just fall down, because he was moving mostly down (false)
     /// - corner correct and keep moving right, because he ignores bottom (true)
-    /// by default or if there was no ignoring he would just hit it and fall down
+    /// by default or if there was no ignoring he would just hit it and fall down (false)
     /// </summary>
-    public bool IgnoreIsSpecial { get; set; } = false;
+    public bool IgnoreIsSpecial { get; set; }
 
     /// <summary>
     /// Player speed, pixels per second
@@ -29,15 +28,20 @@ public partial class Player : CharacterBody2D
     [Export] public float Speed { get; set; } = 200.0f;
 
     /// <summary>
-    /// Amount of corner correction, inclusive (if 5, then player can be moved by 5 or less)
+    /// Amount of corner correction, inclusive
     /// </summary>
     [Export] public int CornerCorrectionAmount { get; set; } = 8;
 
+    /// <summary>
+    /// Sides that will not have any corner correction
+    /// For platformer games, you might want to ignore bottom (IgnoreSides = [Vector2.Down])
+    /// so player does not fall down when he lands on an edge of a platform
+    /// </summary>
     [Export] public Vector2[] IgnoreSides { get; set; } = [];
 
     /// <summary>
     /// Constant movement that player will go through
-    /// This does not respect `Speed` property, so (1, 1) will move very slowly to bottom right
+    /// This does not respect `Speed` property, so (1, 1) will move VERY slowly to bottom right
     /// </summary>
     public Vector2 ConstantMovement { get; set; } = Vector2.Zero;
 
@@ -68,6 +72,7 @@ public partial class Player : CharacterBody2D
         bool keepMove = true)
     {
         var collision = MoveAndCollide(motion, testOnly);
+        #region checking if we should corner correct
         if (collision is null)
             return null;
 
@@ -83,7 +88,6 @@ public partial class Player : CharacterBody2D
         Debug.Assert(direction.LengthSquared() == 1);
 
         // direction that player was going, integer only
-        // we make sure that motion x + y == 1, and then round both numbers
         var logicalMotion = NormalizeSum1(motion).Round();
 
         foreach (var ignore in ignoreSides)
@@ -96,33 +100,28 @@ public partial class Player : CharacterBody2D
             {
                 // basically, if we ignore our current logical movement, but we also were moving slightly diagonally
                 // then we say the other way we were moving will be the main way we were moving
+                // technically, we dont need to do the checks with 0, because if we lie about logical movement
+                // then next check (comparing it to direction of collision) will result in `return collision;`
+                // but why would I make the code intentionally lie to me
                 if (logicalMotion.X == ignore.X)
-                    // logicalMotion = motion.Y == 0 ? Vector2.Zero : motion.Y > 0 ? Vector2.Down : Vector2.Up;
-                    logicalMotion = motion.Y > 0 ? Vector2.Down : Vector2.Up;
+                    logicalMotion = motion.Y == 0 ? Vector2.Zero : motion.Y > 0 ? Vector2.Down : Vector2.Up;
                 if (logicalMotion.Y == ignore.Y)
-                    // logicalMotion = motion.X == 0 ? Vector2.Zero : motion.X > 0 ? Vector2.Right : Vector2.Left;
-                    logicalMotion = motion.X > 0 ? Vector2.Right : Vector2.Left;
-            }
-            else
-            {
-                if (logicalMotion.X == ignore.X)
-                    logicalMotion.X = 0;
-                if (logicalMotion.Y == ignore.Y)
-                    logicalMotion.Y = 0;
+                    logicalMotion = motion.X == 0 ? Vector2.Zero : motion.X > 0 ? Vector2.Right : Vector2.Left;
             }
         }
 
-        // if logical motion is not (±1, 0) or (0, ±1)
-        // this is redundant, because we already make this check for `direction`
-        // so if logical motion is not one of them then we return collision anyway
-        if (logicalMotion.LengthSquared() != 1)
-            return collision;
 
         // if we hit something, but we were not going that direction, dont corner correct
         // so if we were moving top, and very slightly left, we only want corner correct to the top
         if (direction != logicalMotion)
             return collision;
 
+        // logical motion is (±1, 0) or (0, ±1)
+        Debug.Assert(logicalMotion.LengthSquared() == 1);
+
+        #endregion
+
+        #region actually corner correcting
         var correctionResult = Wiggle(CornerCorrectionAmount, normal, testOnly);
         if (correctionResult is null)
             return collision;
@@ -131,6 +130,7 @@ public partial class Player : CharacterBody2D
             return null;
 
         return MoveAndCollideCorner(collision.GetRemainder(), testOnly, ignoreSides, keepMove);
+        #endregion
     }
 
     /// <summary>
@@ -228,6 +228,12 @@ public partial class Player : CharacterBody2D
     public static bool ApproximatelyEqual(Vector2 a, Vector2 b, float precision = NormalAngleMax) =>
         ApproximatelyEqual(a.X, b.X, precision) && ApproximatelyEqual(a.Y, b.Y, precision);
 
+    /// <summary>
+    /// Will normalize Vector so that its sum (x + y) will always will be 1,
+    /// If the vector is Vector2.Zero, then it will return Vector2.Zero
+    /// </summary>
+    /// <param name="vec">the vector to normalize</param>
+    /// <returns>Vector whose x + y == 1, or 0</returns>
     public static Vector2 NormalizeSum1(Vector2 vec)
     {
         if (vec == Vector2.Zero)
@@ -237,5 +243,9 @@ public partial class Player : CharacterBody2D
         return vec / sum;
     }
 
+
+    /// <inheritdoc/>
+    /// <param name="x">x side of vector</param>
+    /// <param name="y">y side of vector</param>
     public static Vector2 NormalizeSum1(float x, float y) => NormalizeSum1(new Vector2(x, y));
 }

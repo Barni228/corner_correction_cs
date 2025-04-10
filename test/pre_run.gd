@@ -5,12 +5,12 @@ extends GutHookScript
 ## file name is not important
 
 ## the `run` method will be executed by gut
-func run():
+func run() -> void:
 	# make all collision shapes visible,
 	# because all tests have just collision shapes without textures
 	set_visible_collision_shapes(true)
 	
-func set_visible_collision_shapes(visibility) -> void:
+func set_visible_collision_shapes(visibility: bool) -> void:
 	# in GutHookScript, you cannot do `get_tree` because script is not attached to a scene
 	# but you can ge the main loot scene and use that
 	# var tree := get_tree()
