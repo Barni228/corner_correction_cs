@@ -1,6 +1,6 @@
 extends TestTemplate
 
-const wait_time = 1
+const wait_time := 1
 
 func before_all() -> void:
 	setup(preload("res://test/scenes/test_rect.tscn"))

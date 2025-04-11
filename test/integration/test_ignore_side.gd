@@ -1,5 +1,7 @@
 extends TestTemplate
 
+const wait_time := 0.5
+
 func before_all() -> void:
 	setup(preload("res://test/scenes/test_ignore_side.tscn"))
 
@@ -13,7 +15,7 @@ func test_can_do_without_ignore() -> void:
 		call_count += 1
 		player.position = init_pos
 		input_sender.key_down(key)
-		await wait_for_signal(area.body_entered, 1)
+		await wait_for_signal(area.body_entered, wait_time)
 		assert_signal_emit_count(area, "body_entered", call_count)
 		input_sender.release_all()
 		await wait_frames(5)
@@ -29,6 +31,6 @@ func test_ignore_single_side() -> void:
 		var key: int = i[1]
 		player.IgnoreSides = [side]
 		input_sender.key_down(key)
-		await wait_for_signal(area.body_entered, 1)
+		await wait_for_signal(area.body_entered, wait_time)
 		assert_signal_not_emitted(area, "body_entered")
 		input_sender.release_all()

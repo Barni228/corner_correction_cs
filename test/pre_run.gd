@@ -9,7 +9,10 @@ func run() -> void:
 	# make all collision shapes visible,
 	# because all tests have just collision shapes without textures
 	set_visible_collision_shapes(true)
-	
+	# speed EVERYTHING up by 4 times, so our tests are 4 times faster
+	Engine.time_scale = 4
+
+
 func set_visible_collision_shapes(visibility: bool) -> void:
 	# in GutHookScript, you cannot do `get_tree` because script is not attached to a scene
 	# but you can ge the main loot scene and use that

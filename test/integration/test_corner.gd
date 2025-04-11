@@ -1,5 +1,7 @@
 extends TestTemplate
 
+const wait_time := 1
+
 func before_all() -> void:
 	setup(preload("res://test/scenes/test_corner.tscn"))
 
@@ -9,7 +11,7 @@ func test_corner_collision_works() -> void:
 	# we can also press keys instead of actions
 	input_sender.key_down(KEY_UP)
 	input_sender.key_down(KEY_RIGHT)
-	await wait_for_signal(area.body_entered, 3)
+	await wait_for_signal(area.body_entered, wait_time)
 
 	assert_signal_emitted(area, "body_entered")
 
@@ -20,6 +22,6 @@ func test_corner_with_ignore() -> void:
 	player.IgnoreSides = [Vector2.DOWN]
 	input_sender.key_down(KEY_UP)
 	input_sender.key_down(KEY_RIGHT)
-	await wait_for_signal(area.body_entered, 3)
+	await wait_for_signal(area.body_entered, wait_time)
 
 	assert_signal_emitted(area, "body_entered")
