@@ -147,42 +147,47 @@ public partial class Player : CharacterBody2D
     private int? Wiggle(int range, Vector2 normal, bool testOnly)
     {
         // Axis on which we will be moving
-        // var v = ApproximatelyEqual(direction.X, 0) ? Vector2.Right : Vector2.Down;
         var v = normal.Rotated(DegToRad(90));
 
         // we dont start at 0, because moving by 0 means not moving
         for (int i = 1; i <= range; i++)
             foreach (Vector2 move in new Vector2[] { v * i, v * i * -1 })
             {
-                if (CheckIfWorks(move, -normal, testOnly))
+                if (CheckIfWorks(move, -normal))
+                {
+                    if (!testOnly)
+                        Position += move;
+
                     return i;
+                }
             }
         return null;
     }
 
-    private bool CheckIfWorks(Vector2 initMovement, Vector2 checkMovement, bool testOnly = false)
+    /// <summary>
+    /// Checks if the `initMovement` movement results in player being able
+    /// to move with `checkMovement` without any collisions
+    /// This method has no side effects (does not modify anything)
+    /// </summary>
+    /// <param name="initMovement">The initial movement to perform</param>
+    /// <param name="checkMovement">The movement that player should be able to do from the `initMovement`</param>
+    /// <returns>
+    /// `true` if player can do `checkMovement` without collision after applying the `initMovement`
+    /// or `false` if player collides when trying to do `checkMovement` after `initMovement`
+    /// </returns>
+    private bool CheckIfWorks(Vector2 initMovement, Vector2 checkMovement)
     {
+        var transform = GlobalTransform;
         // if we cannot move to the initial position, then this does not work
-        if (MoveAndCollide(initMovement, true) is not null)
+        if (TestMove(transform, initMovement))
             return false;
 
         // move to the initial position
-        var prevPos = Position;
-        Position += initMovement;
+        // origin is basically Position
+        transform.Origin += initMovement;
 
-        // if we cannot move by the check movement, then this does not work
-        if (MoveAndCollide(checkMovement, testOnly: testOnly) is not null)
-        {
-            // if this movement does not work, we don't want to move player
-            Position = prevPos;
-            return false;
-        }
-        // at this point, the movement works
-        // if testOnly is false, then MoveAndCollide already moved above
-        if (testOnly)
-            Position = prevPos;
-
-        return true;
+        // return whether there was no collision
+        return !TestMove(transform, checkMovement);
     }
 
     /// <summary>
