@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3 uid="uid://c2regiiyqrpyr"]
+[gd_scene load_steps=5 format=3 uid="uid://c2regiiyqrpyr"]
 
 [ext_resource type="Texture2D" uid="uid://bnrnvqohxny3o" path="res://icon.svg" id="1_4flbx"]
 [ext_resource type="Script" uid="uid://cfsref7yv4a6o" path="res://Player.cs" id="1_onrkg"]
+[ext_resource type="Script" uid="uid://brqg0lw1rsj8u" path="res://CornerCorrection.cs" id="3_i3pqv"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_onrkg"]
 size = Vector2(213.333, 213.333)
@@ -10,7 +11,6 @@ size = Vector2(213.333, 213.333)
 scale = Vector2(1.2, 1)
 collision_layer = 2
 script = ExtResource("1_onrkg")
-CornerCorrectionAmount = 32
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("1_4flbx")
@@ -18,3 +18,9 @@ texture = ExtResource("1_4flbx")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 scale = Vector2(0.6, 0.6)
 shape = SubResource("RectangleShape2D_onrkg")
+
+[node name="CornerCorrection" type="Node" parent="." node_paths=PackedStringArray("Character")]
+script = ExtResource("3_i3pqv")
+Character = NodePath("..")
+CornerCorrectionAmount = 32
+metadata/_custom_type_script = "uid://brqg0lw1rsj8u"

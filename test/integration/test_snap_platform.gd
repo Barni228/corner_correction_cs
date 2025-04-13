@@ -5,8 +5,10 @@ const wait_time := 0.8
 func before_all() -> void:
 	setup(preload("res://test/scenes/test_snap_platform.tscn"))
 
-func test_correct_ignore_sides() -> void:
-	assert_eq(player.IgnoreSides, PackedVector2Array([Vector2.DOWN]))
+func before_each() -> void:
+	# call the parents before each
+	super.before_each()
+	player.CornerCorrectionNode.IgnoreSides = [Vector2.DOWN]
 
 func test_snap_platform() -> void:
 	watch_signals(area)
@@ -17,7 +19,7 @@ func test_snap_platform() -> void:
 
 func test_no_snap_platform() -> void:
 	watch_signals(area)
-	player.IgnoreIsSpecial = false
+	player.CornerCorrectionNode.IgnoreIsSpecial = false
 	area_should_be_reached(false)
 
 	move_player(0.4, 0.6)
@@ -26,7 +28,7 @@ func test_no_snap_platform() -> void:
 
 func test_ignore_is_special() -> void:
 	watch_signals(area)
-	player.IgnoreIsSpecial = true
+	player.CornerCorrectionNode.IgnoreIsSpecial = true
 	move_player(0.4, 0.6)
 	await wait_for_signal(area.body_entered, wait_time)
 	assert_signal_emitted(area, "body_entered")

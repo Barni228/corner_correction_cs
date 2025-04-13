@@ -8,7 +8,7 @@ func before_all() -> void:
 func test_can_do_without_ignore() -> void:
 	watch_signals(area)
 	var init_pos := player.position
-	player.IgnoreSides = []
+	player.CornerCorrectionNode.IgnoreSides = []
 	var call_count := 0
 
 	for key: int in [KEY_UP, KEY_RIGHT, KEY_DOWN, KEY_LEFT]:
@@ -29,7 +29,7 @@ func test_ignore_single_side() -> void:
 		player.position = init_pos
 		var side: Vector2 = i[0]
 		var key: int = i[1]
-		player.IgnoreSides = [side]
+		player.CornerCorrectionNode.IgnoreSides = [side]
 		input_sender.key_down(key)
 		await wait_for_signal(area.body_entered, wait_time)
 		assert_signal_not_emitted(area, "body_entered")
