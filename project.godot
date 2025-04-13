@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Corner Correction"
+config/name="Corner Correction C#"
 run/main_scene="uid://8gjg4hhmcwxu"
 config/features=PackedStringArray("4.4", "C#", "Mobile")
 config/icon="res://icon.svg"
@@ -25,7 +25,7 @@ project/assembly_name="Corner Correction"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gut/plugin.cfg")
+enabled=PackedStringArray("res://addons/corner_correction_cs/plugin.cfg", "res://addons/gut/plugin.cfg")
 
 [layer_names]
 
