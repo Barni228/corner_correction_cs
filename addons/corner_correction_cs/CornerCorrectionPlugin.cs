@@ -6,15 +6,14 @@ public partial class CornerCorrectionPlugin : EditorPlugin
 {
 	public override void _EnterTree()
 	{
-		var script = GD.Load<Script>("CornerCorrection.cs");
+		var script = GD.Load<Script>("uid://brqg0lw1rsj8u");
 
-		// for some reason i cannot add a custom icon
-		AddCustomType("CornerCorrection", "Node", script, null);
+		AddCustomType("CornerCharacter2D", "CharacterBody2D", script, null);
 	}
 
 	public override void _ExitTree()
 	{
-		RemoveCustomType("CornerCorrection");
+		RemoveCustomType("CornerCharacter2D");
 	}
 }
 #endif

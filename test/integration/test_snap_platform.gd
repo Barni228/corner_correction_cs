@@ -8,7 +8,7 @@ func before_all() -> void:
 func before_each() -> void:
 	# call the parents before each
 	super.before_each()
-	player.CornerCorrectionNode.IgnoreSides = [Vector2.DOWN]
+	player.IgnoreSides = [SIDE_BOTTOM]
 
 func test_snap_platform() -> void:
 	watch_signals(area)
@@ -19,7 +19,7 @@ func test_snap_platform() -> void:
 
 func test_no_snap_platform() -> void:
 	watch_signals(area)
-	player.CornerCorrectionNode.IgnoreIsSpecial = false
+	player.IgnoreIsSpecial = false
 	area_should_be_reached(false)
 
 	move_player(0.4, 0.6)
@@ -28,7 +28,7 @@ func test_no_snap_platform() -> void:
 
 func test_ignore_is_special() -> void:
 	watch_signals(area)
-	player.CornerCorrectionNode.IgnoreIsSpecial = true
+	player.IgnoreIsSpecial = true
 	move_player(0.4, 0.6)
 	await wait_for_signal(area.body_entered, wait_time)
 	assert_signal_emitted(area, "body_entered")

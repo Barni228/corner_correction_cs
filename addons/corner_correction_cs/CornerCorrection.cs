@@ -1,12 +1,29 @@
 namespace CornerCorrection;
-using System.Diagnostics;
+
+using System;
+using System.Diagnostics; // Debug.Assert
 using Godot;
 using static Godot.Mathf;
 
 // this makes it visible in `Add child` in godot editor
+/// <summary>
+/// Corner Corrected character body 2D
+/// </summary>
 [GlobalClass]
-public partial class CornerCorrection : Node
+public partial class CornerCharacter2D : CharacterBody2D
 {
+    /// <summary>
+    /// this contains a KinematicCollision2D, bool of whether it corner corrected or no, and new player position
+    /// </summary>
+    /// <param name="Collision">Collision that could not be corner corrected (null if collision was corrected)</param>
+    /// <param name="Corrected">`true` if corner correction happened</param>
+    /// <param name="NewPos">New player position</param>
+    public record CornerCorrectionResult(
+        bool Corrected,
+        KinematicCollision2D? Collision,
+        Vector2 NewPos
+    );
+
     /// <summary>
     /// maximum normal angle at which we will still corner correct
     /// so if it is `0.1f` and we hit something with normal `(0.1, 0.9)`, we will still corner correct
@@ -18,14 +35,9 @@ public partial class CornerCorrection : Node
     /// and he hits corner of something to hit right (platform), should he:
     /// - hit it and just fall down, because he was moving mostly down (false)
     /// - corner correct and keep moving right, because he ignores bottom (true)
-    /// by default or if there was no ignoring he would just hit it and fall down (false)
+    /// The default value is `true`
     /// </summary>
-    public bool IgnoreIsSpecial { get; set; }
-
-    /// <summary>
-    /// The character to move
-    /// </summary>
-    [Export] public CharacterBody2D Character { get; set; } = default!;
+    public bool IgnoreIsSpecial { get; set; } = true;
 
     /// <summary>
     /// Amount of corner correction, inclusive
@@ -34,39 +46,60 @@ public partial class CornerCorrection : Node
 
     /// <summary>
     /// Sides that will not have any corner correction
-    /// For platformer games, you might want to ignore bottom (IgnoreSides = [Vector2.Down])
+    /// For platformer games, you might want to ignore bottom (IgnoreSides = [Side.Bottom])
     /// so player does not fall down when he lands on an edge of a platform
     /// </summary>
-    [Export] public Vector2[] IgnoreSides { get; set; } = [];
+    [Export] public Godot.Collections.Array<Side> IgnoreSides { get; set; } = [];
+
+    /// <summary>
+    /// This method behaves almost the same as `MoveAndSlide` but with corner correction
+    /// It will use `Velocity` to calculate movement
+    /// </summary>
+    /// <param name="delta">The delta time, for frame rate independence</param>
+    public void MoveAndSlideCorner(float delta)
+    {
+        // if we can corner correct, do it
+        var CornerCorrectResult = MoveAndCorrect(Velocity * delta, true);
+        if (CornerCorrectResult.Corrected)
+            GlobalPosition = CornerCorrectResult.NewPos;
+
+        // otherwise use move and slide
+        else
+            MoveAndSlide();
+    }
+
+    /// <inheritdoc/>
+    public void MoveAndSlideCorner(double delta) => MoveAndSlideCorner((float)delta);
+
 
     /// <summary>
     /// This method works almost exactly the same as <see cref="CharacterBody2d.MoveAndCollide"/>.
     /// It modifies `Position`, and uses `MoveAndCollide`
     /// </summary>
-    /// <param name="motion">Characters motion, for frame independence use `delta`</param>
+    /// <param name="motion">Characters motion, for frame independence multiply by `delta`</param>
     /// <param name="testOnly">If true, don't actually move the player</param>
-    /// <param name="ignoreSides">The sides that should not have corner correction (e.g. Vector2.DOWN)</param>
-    /// <param name="keepMove">
-    /// If true, object continues moving after corner correction
-    /// So if object needed to move by 10px, and it moves by 2px and then it hits an obstacle
-    /// But successfully corner corrects away, if `keepMove` is true it will still move by 8px
-    /// </param>
-    /// <returns>collision object</returns>
-    public KinematicCollision2D? MoveAndCollideCorner(
-        Vector2 motion,
-        bool testOnly = false,
-        bool keepMove = true)
+    /// <returns>
+    /// CornerCorrectionResult with
+    /// - Corrected: `true` if this function corner corrected
+    /// - Collision: collision that could not be corner corrected (if corrected is true this is null)
+    /// - NewPos: if `testOnly` is true, this is APPROXIMATELY where the player would be if it was false
+    /// </returns>
+    public CornerCorrectionResult MoveAndCorrect(Vector2 motion, bool testOnly = false)
     {
-        var collision = Character.MoveAndCollide(motion, testOnly);
-        #region checking if we should corner correct
+        var from = GlobalTransform;
+
+        var collision = MoveAndCollide(motion, testOnly);
+
         if (collision is null)
-            return null;
+            return new CornerCorrectionResult(false, null, from.Origin);
+
+        from.Origin += collision.GetTravel();
 
         var normal = collision.GetNormal();
 
         // if we hit something diagonally, dont corner correct
         if (IsDiagonal(normal))
-            return collision;
+            return new CornerCorrectionResult(false, collision, from.Origin);
 
         // the direction of the collision
         var direction = -normal.Round();
@@ -78,8 +111,9 @@ public partial class CornerCorrection : Node
 
         foreach (var ignore in IgnoreSides)
         {
-            if (ApproximatelyEqual(ignore, direction))
-                return collision;
+            var ignoreVec = SideToVec(ignore);
+            if (ignoreVec == direction)
+                return new CornerCorrectionResult(false, collision, from.Origin);
 
             // this is the only place where we use `IgnoreIsSpecial`
             if (IgnoreIsSpecial)
@@ -89,9 +123,9 @@ public partial class CornerCorrection : Node
                 // technically, we dont need to do the checks with 0, because if we lie about logical movement
                 // then next check (comparing it to direction of collision) will result in `return collision;`
                 // but why would I make the code intentionally lie to me
-                if (logicalMotion.X == ignore.X)
+                if (logicalMotion.X == ignoreVec.X)
                     logicalMotion = motion.Y == 0 ? Vector2.Zero : motion.Y > 0 ? Vector2.Down : Vector2.Up;
-                if (logicalMotion.Y == ignore.Y)
+                if (logicalMotion.Y == ignoreVec.Y)
                     logicalMotion = motion.X == 0 ? Vector2.Zero : motion.X > 0 ? Vector2.Right : Vector2.Left;
             }
         }
@@ -100,37 +134,53 @@ public partial class CornerCorrection : Node
         // if we hit something, but we were not going that direction, dont corner correct
         // so if we were moving top, and very slightly left, we only want corner correct to the top
         if (direction != logicalMotion)
-            return collision;
+            return new CornerCorrectionResult(false, collision, from.Origin);
 
         // logical motion is (±1, 0) or (0, ±1)
         Debug.Assert(logicalMotion.LengthSquared() == 1);
 
-        #endregion
-
         #region actually corner correcting
-        var correctionResult = Wiggle(CornerCorrectionAmount, normal, testOnly);
-        if (correctionResult is null)
-            return collision;
+        var correctedPos = Wiggle(from, CornerCorrectionAmount, normal);
+        if (correctedPos is null)
+            return new CornerCorrectionResult(false, collision, from.Origin);
 
-        if (!keepMove)
-            return null;
+        from.Origin = correctedPos.Value;
 
-        return MoveAndCollideCorner(collision.GetRemainder(), testOnly, keepMove);
+        if (!testOnly)
+        {
+            GlobalPosition = correctedPos.Value;
+            MoveAndCorrect(collision.GetRemainder());
+        }
+
+        return new CornerCorrectionResult(true, null, from.Origin);
         #endregion
     }
 
     /// <summary>
-    /// This method will move back and forth the player by no more that `range`
+    /// This method works almost exactly the same as <see cref="CharacterBody2d.MoveAndCollide"/>.
+    /// See `MoveAndCorrect` (this method just uses that but only returns the collision)
+    /// It modifies `GlobalPosition`, and uses `MoveAndCollide`
     /// </summary>
+    /// <param name="motion">Characters motion, for frame independence multiply by `delta`</param>
+    /// <param name="testOnly">If true, don't actually move the player</param>
+    /// <returns>Collision Object</returns>
+    public KinematicCollision2D? MoveAndCollideCorner(
+        Vector2 motion,
+        bool testOnly = false
+    ) => MoveAndCorrect(motion, testOnly).Collision;
+
+
+    /// <summary>
+    /// This method will move back and forth the player by no more than `range`
+    /// It has no side effects
+    /// </summary>
+    /// <param name="from">The player `GlobalTransform`</param>
     /// <param name="range">maximum movement that could be performed</param>
     /// <param name="normal">normal of the collision (`KinematicCollision2D.GetNormal()`)</param>
-    /// <param name="testOnly">if `true`, do not actually move the player</param>
     /// <returns>
-    /// number of pixels moved if player was moved successfully 
-    /// (or how many pixels player could be moved if `testOnly` is `true`)
-    /// `null` if player could not be moved to valid position
+    /// The correct player position, or `null` if it was not found
     /// </returns>
-    private int? Wiggle(int range, Vector2 normal, bool testOnly)
+    private Vector2? Wiggle(Transform2D from, int range, Vector2 normal)
     {
         // Axis on which we will be moving
         var v = normal.Rotated(DegToRad(90));
@@ -139,13 +189,8 @@ public partial class CornerCorrection : Node
         for (int i = 1; i <= range; i++)
             foreach (Vector2 move in new Vector2[] { v * i, v * i * -1 })
             {
-                if (CheckIfWorks(move, -normal))
-                {
-                    if (!testOnly)
-                        Character.Position += move;
-
-                    return i;
-                }
+                if (CheckIfWorks(from, move, -normal))
+                    return from.Origin + move;
             }
         return null;
     }
@@ -155,68 +200,45 @@ public partial class CornerCorrection : Node
     /// to move with `checkMovement` without any collisions
     /// This method has no side effects (does not modify anything)
     /// </summary>
+    /// <param name="from">The player `GlobalTransform`</param>
     /// <param name="initMovement">The initial movement to perform</param>
     /// <param name="checkMovement">The movement that player should be able to do from the `initMovement`</param>
     /// <returns>
     /// `true` if player can do `checkMovement` without collision after applying the `initMovement`
     /// or `false` if player collides when trying to do `checkMovement` after `initMovement`
     /// </returns>
-    private bool CheckIfWorks(Vector2 initMovement, Vector2 checkMovement)
+    private bool CheckIfWorks(Transform2D from, Vector2 initMovement, Vector2 checkMovement)
     {
-        var transform = Character.GlobalTransform;
         // if we cannot move to the initial position, then this does not work
-        if (Character.TestMove(transform, initMovement))
+        if (TestMove(from, initMovement))
             return false;
 
         // move to the initial position
         // origin is basically Position
-        transform.Origin += initMovement;
+        from.Origin += initMovement;
 
         // return whether there was no collision
-        return !Character.TestMove(transform, checkMovement);
+        return !TestMove(from, checkMovement);
     }
 
     /// <summary>
-    /// This method behaves almost the same as `MoveAndSlide` but with corner correction
-    /// It will use `Velocity` to calculate movement
+    /// convert `Side` to `Vector2`, so `Side.Top` is `Vector2.Up`
     /// </summary>
-    /// <param name="delta">The delta time, for frame rate independence</param>
-    public void MoveAndSlideCorner(float delta)
+    /// <param name="side">Side to convert</param>
+    /// <returns>Converted Vector2</returns>
+    public static Vector2 SideToVec(Side side)
     {
-        // move regularly
-        var collision = MoveAndCollideCorner(Character.Velocity * delta);
-        if (collision is not null)
+        return side switch
         {
-            // Get the velocity that we still need to move, with delta applied
-            Character.Velocity = collision.GetRemainder();
-
-            // for some reason move and slide does not work properly if i move character properly
-            // Velocity /= delta; MoveAndSlide(); return;
-            // you need the loop in case of slopes
-            const int maxSlides = 4;
-            int slideCount = 0;
-            while (Character.Velocity.LengthSquared() > 0.001f && slideCount < maxSlides)
-            {
-                var _collision = Character.MoveAndCollide(Character.Velocity);
-                if (_collision is null)
-                    // No collision, we're done
-                    break;
-
-                // Slide along the collision normal
-                var normal = _collision.GetNormal();
-                Character.Velocity = Character.Velocity.Slide(normal);
-                // Prevent infinite loops
-                slideCount++;
-            }
-        }
+            Side.Top => Vector2.Up,
+            Side.Right => Vector2.Right,
+            Side.Bottom => Vector2.Down,
+            Side.Left => Vector2.Left,
+            _ => throw new ArgumentOutOfRangeException(nameof(side), side, "Invalid side value")
+        };
     }
 
     public static bool IsDiagonal(Vector2 v) => Min(Abs(v.X), Abs(v.Y)) > NormalAngleMax;
-    public static bool ApproximatelyEqual(float a, float b, float precision = NormalAngleMax) =>
-        Abs(a - b) <= precision;
-
-    public static bool ApproximatelyEqual(Vector2 a, Vector2 b, float precision = NormalAngleMax) =>
-        ApproximatelyEqual(a.X, b.X, precision) && ApproximatelyEqual(a.Y, b.Y, precision);
 
     /// <summary>
     /// Will normalize Vector so that its sum (x + y) will always will be 1,
@@ -232,6 +254,7 @@ public partial class CornerCorrection : Node
         var sum = Abs(vec.X) + Abs(vec.Y);
         return vec / sum;
     }
+
 
 
     /// <inheritdoc/>

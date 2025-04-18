@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://yfvliv2acm1r"]
+
+[ext_resource type="Script" uid="uid://f2vpc31wsisv" path="res://examples/basic/ExamplePlayer.cs" id="1_723yi"]
+[ext_resource type="Texture2D" uid="uid://bnrnvqohxny3o" path="res://icon.svg" id="2_gtwm2"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_gtwm2"]
+size = Vector2(128, 128)
+
+[node name="ExamplePlayer" type="CharacterBody2D"]
+script = ExtResource("1_723yi")
+IgnoreSides = Array[int]([3])
+metadata/_custom_type_script = "uid://brqg0lw1rsj8u"
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_gtwm2")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_gtwm2")

@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://ddhxh8aoopmq0"]
 
-[ext_resource type="PackedScene" uid="uid://c2regiiyqrpyr" path="res://player.tscn" id="1_fxjm1"]
+[ext_resource type="PackedScene" uid="uid://c2regiiyqrpyr" path="res://test/resources/player.tscn" id="1_fxjm1"]
 [ext_resource type="Script" uid="uid://dtxcllpygvorg" path="res://test/scenes/area.gd" id="2_apu1q"]
 
 [node name="Template" type="Node2D"]
